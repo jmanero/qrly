@@ -1,6 +1,6 @@
 Qrly
 ====
-A highly extensible buffer/queue with properly implemented asynchronicity
+A highly extensible buffer/queue with properly implemented asynchronicity. Based, in part, upon the inner-workings of `queue` in the `async` library.
 
 ### tl;dr; Usage
 Qlry implements a simple asynchronous loop with both buffer and queue semantics.
@@ -44,6 +44,9 @@ __As a buffer__
 Setting `collect` to `false` keeps results from being saved internally. Setting `flushable` to `false` suppresses the `flushed` event. Only one task at a time can be passed to `buffer(...)`. The second argument (a function) will be called by `complete(...)` in the worker, above, when it finishes processing the the respective task.
 
 When the queue's backlog becomes longer than the `flood` attribute a `flood` event will be emitted. When the length drops below the `drain` attribute, a `drain` event will be emitted.
+
+### To Do
+ 1. Tests and coverage.
 
 ### Theory
 _For those unfamiliar with event loops. No hisses form the Java programmers please..._
