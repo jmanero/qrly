@@ -73,7 +73,7 @@ But... What if you have I/O-intensive work? File access? REST requests? Database
 
     console.log("I'm Out!");
 
-Alright, that works. Try running it a couple times. _Hint: the order of responses probably changed. That's because the requests execute asynchronously._
+All right, that works. Try running it a couple times. _Hint: the order of responses probably changed. That's because the requests execute asynchronously._
 
 "But `Array.forEach(...)` is synchronous! You said..." 
 
@@ -112,13 +112,13 @@ And we've found the problem: our good old synchronous control structures have no
 
 #### Methods
  * `push(task[, meta[, worker]])` Add a task (or array of tasks) to the queue. 
-  * `meta` is an optional value that will be passed to the worker with the respective task(s) being queued by tat call to `push(...)`
-  * Similarly, `worker` can be passed a function (that accepts the same arguments as that of the `worker` attribute, above) with a task, or block of tasks, to override the default worker for the respective task(s).
+  * `meta` is an optional value that will be passed to the worker with the respective task(s) being queued by the call
+  * Similarly, `worker` can be passed a function that accepts the same arguments as that of the `worker` attribute, above, with a task or block of tasks, to override the default worker for the respective task(s).
  * `buffer(task, callback(err, result)[, meta[, worker]])` Accepts a single task with a callback to be bound to that task.
-  * `callback(err, res)` Must accept two arguments: `error` and `result`. Will be called after the work function calls its `complete(...)` callback.
+  * `callback(err, res)` Must accept two arguments: `error` and `result`. It will be called after the work function calls its `complete(...)` callback.
   * See `push(...)` for `meta` and `worker` usages.
  * `clear()` Empty the results array
- * `pause()` Set the `paused` attribute to `true`. This will cause the internal loop to cease to start new tasks. It will complete all running tasks. Calling `pause()` is preferred over setting the `paused` attribute directly. Safe to call repeatedly.
+ * `pause()` Set the `paused` attribute to `true`. This will cause the internal loop to stop popping tasks off of the backlog and complete all running tasks. Calling `pause()` is preferred over setting the `paused` attribute directly. Safe to call repeatedly.
  * `resume()` Set the `paused` attribute to false and restart the internal loop. Safe to call repeatedly.
 
 #### Events
