@@ -45,8 +45,9 @@ Setting `collect` to `false` keeps results from being saved internally. Setting 
 
 When the queue's backlog becomes longer than the `flood` attribute a `flood` event will be emitted. When the length drops below the `drain` attribute, a `drain` event will be emitted.
 
-### To Do
- 1. Tests and coverage.
+### Tests
+Run `bin/test.js` with mocha:
+    mocha -R spec bin/test.js
 
 ### Theory
 _For those unfamiliar with event loops. No hisses form the Java programmers please..._
