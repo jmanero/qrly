@@ -47,6 +47,7 @@ When the queue's backlog becomes longer than the `flood` attribute a `flood` eve
 
 ### Tests
 Run `bin/test.js` with mocha:
+
     mocha -R spec bin/test.js
 
 ### Theory
