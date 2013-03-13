@@ -1,0 +1,10 @@
+{
+	"name" : "qrly",
+	"version" : "0.1.0",
+	"description" : "A highly extensible queue with proper asynchronicity",
+	"author" : {
+		"name" : "John Manero",
+		"email" : "jmanero@dyn.com"
+	},
+	"license" : "MIT"
+}
