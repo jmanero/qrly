@@ -6,7 +6,7 @@
 		"name" : "John Manero",
 		"email" : "jmanero@dyn.com"
 	},
-	"keywords" : [ "queue", "buffer", "async" ]
+	"keywords" : [ "queue", "buffer", "async" ],
 	"repository" : {
 		"type" : "git",
 		"url" : "https://github.com/jmanero/qrly.git"
