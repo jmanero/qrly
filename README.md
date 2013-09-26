@@ -24,7 +24,7 @@ __Setup__
 
 __As a queue__
 
-    queue.on('flushed', function(results) { ... });
+    queue.on('end', function(results) { ... });
     queue.push([ { a : 1, b : 2 }, { a : 4, b : 0 }, null, { a : "A", b : null } ]);
 The arguments passed to `complete(...)` in the worker will be pushed onto the `results` array in an object with the original task entity:
 
@@ -34,21 +34,22 @@ The arguments passed to `complete(...)` in the worker will be pushed onto the `r
       error : null // Hopefully...
     });
 
-When the queue's task list (backlog) is emptied, and all tasks completed, a `flush` event will be emitted with the results array as payload.
+When the queue's task list (backlog) is emptied, and all tasks completed, an `end` event will be emitted with the results array as payload.
 
 __As a buffer__
 
-    queue.flushable = false;
     queue.collect = false;
     queue.buffer({ "data" : [1, 2, 34, 4]}, function(err, res) { // Do Things; });
-Setting `collect` to `false` keeps results from being saved internally. Setting `flushable` to `false` suppresses the `flushed` event. Only one task at a time can be passed to `buffer(...)`. The second argument (a function) will be called by `complete(...)` in the worker, above, when it finishes processing the the respective task.
+Setting `collect` to `false` keeps results from being saved internally. Only one task at a time can be passed to `buffer(...)`. The second argument (a function) will be called by `complete(...)` in the worker, above, when it finishes processing the the respective task.
 
 When the queue's backlog becomes longer than the `flood` attribute a `flood` event will be emitted. When the length drops below the `drain` attribute, a `drain` event will be emitted.
 
 ### Tests
-Run `bin/test.js` with mocha:
+1. Install Mocha
 
-    mocha -R spec bin/test.js
+	npm install -g mocha
+ 
+2. Run `./bin/test`
 
 ### Theory
 _For those unfamiliar with event loops. No hisses form the Java programmers please..._
@@ -79,52 +80,53 @@ All right, that works. Try running it a couple times. _Hint: the order of respon
 
 Yes, you're right. `forEach(...)` did block and execute the requests in the order that they appear in the array, but `HTTP.get(...)` is asynchronous, and returns before its respective HTTP transaction completes, allowing all of the requests to be "in flight" at the same time. The order in which the callbacks are called depends mainly upon how fast the remote web servers can pony up bytes to complete their responses. In fact, _none_ of the callbacks can be executed until the loop completes _and_ the code after it returns. Functions are still atomic!
 
-"Now... I want to execute something once all of those requests have called back. Oh, and I have 10,000 URLs to query. Only do 10 at a time so I don't exhaust my server's TCP socket resources." Umm, #@&*^Á.
+"Now... I want to execute something once all of those requests have called back. Oh, and I have 10,000 URLs to query. Only do 10 at a time so I don't exhaust my server's TCP socket resources." Umm, #@&*^ï¿½.
 
 And we've found the problem: our good old synchronous control structures have no semantics for handling asynchronous flow. Clearly, we need something to do that... like a queue...
 
 ### API
  * `Constructor(options)` Supported `options` include the following and map to similarly named attributes, below.
   * `paused` When truthy, sets the initial state of the queue to paused.
-  * `flushable`
   * `collect`
-  * `cleanup`
   * `concurrency`
   * `flooded`
-  * `drained`
 
 #### Readonly Attributes
  * `runnning: Number` Count of tasks that have been shifted off of the backlog queue, but have not yet called back
  * `tasks: Array[Object]` Backlog of tasks that have not been started
- * `results: Array[Result]` Aggregation of `Results` returned by completed tasks. The `results` array will be returned as the payload of `flushed` events.
- * `flooded: Boolean` State flag to indicate that the queue's backlog length is longer than the `flood` attribute. Set `true` _internally_ before `flooded` events are emitted, and `false` before `drained` events.
+ * `results: Array[Result]` Aggregation of `Results` returned by completed tasks. The `results` array will be returned as the payload of `end` events.
+ * `flooded: Boolean` State flag to indicate that the queue's backlog length is longer than the `flood` attribute. Set `true` _internally_ before `flooded` events are emitted, and `false` before `drain` events.
 
 #### Mutable Attributes
  * `worker: Function(task, callback, meta)` The default work function for the queue. `callback` is passed a function that accepts two arguments: `error` and `result`. It must be called before the work function returns. `mata` is an optional value that was passed into the queue with tasks in `push(...)` or `buffer(...)`. It's primary use-case is to share a resource (e.g. database connection) between a block of tasks passed to `push(...)`.
  * `paused: Boolean` Same as `pause()` method, below. Once the queue has been instantiated, use of the `pause()` and `resume()` methods is preferred over setting the value of `paused`.
  (default `false`)
- * `flushable: Boolean` If true, `flushed` events will be emitted when the backlog is emptied and all tasks completed. Useful if tasks are streamed in chunks with a terminating `end` event: set to false to keep the queue from flushing before all tasks have been received (default `true`)
  * `collect: Boolean` Save results and errors in the `results` array (default `true`)
- * `cleanup: Boolean` Empty the `results` array after every `flushed` event (default `true`)
  * `concurrency: Number` How many tasks to keep in-flight (default `1`)
- * `flood: Number` Upper threshold at which the `flooded` event is emitted (default `256`)
- * `drain: Number` Lower threshold at which the `drained` event is emitted (default `1`)
+ * `flood: Number` Upper threshold at which the queue enters the flooded state. `buffer` and `push` will return false when the backlog exceeds this value (default `256`)
+ * `drain: Number` Lower threshold at which the `drain` event is emitted (default `1`)
 
 #### Methods
- * `push(task[, meta[, worker]])` Add a task (or array of tasks) to the queue. 
+ * `push(tasks[, meta[, callback(results)]])` Add a task (or array of tasks) to the queue. 
   * `meta` is an optional value that will be passed to the worker with the respective task(s) being queued by the call
-  * Similarly, `worker` can be passed a function that accepts the same arguments as that of the `worker` attribute, above, with a task or block of tasks, to override the default worker for the respective task(s).
+  * `callback(results)` will be called when all tasks in the `tasks` array passed to `push` have all been completed. The callback will be passed an array of result objects from the associated tasks. These tasks' results will not be added to the global results array, or passed to `end` events.
  * `buffer(task, callback(err, result)[, meta[, worker]])` Accepts a single task with a callback to be bound to that task.
   * `callback(err, res)` Must accept two arguments: `error` and `result`. It will be called after the work function calls its `complete(...)` callback.
-  * See `push(...)` for `meta` and `worker` usages.
+  * See `push(...)` for `meta` usages.
+  * `worker` will override the queue's default work function.
  * `clear()` Empty the results array
  * `pause()` Set the `paused` attribute to `true`. This will cause the internal loop to stop popping tasks off of the backlog and complete all running tasks. Calling `pause()` is preferred over setting the `paused` attribute directly. Safe to call repeatedly.
  * `resume()` Set the `paused` attribute to false and restart the internal loop. Safe to call repeatedly.
 
 #### Events
- * `flushed: function([Result])` Emitted when the backlog is emptied and all tasks completed. Payload contains an array of result and error entities returned by workers (if `collect` is `true`)
- * `flooded: function()` Emitted when the backlog length becomes greater than the `flood` attribute
- * `drained: function()` Emitted when the backlog length becomes less than the `drain` attribute
+ * `end: function([Result])` Emitted when the backlog is emptied and all tasks completed. Payload contains an array of result and error entities returned by workers (if `collect` is `true`)
+ * `drain: function()` Emitted when the backlog length becomes less than the `drain` attribute
+
+### Changes
+#### 0.1.x -> 0.2.0
+* Removed `flushable` and `cleanup` attributes. The queue always acts as if both were true.
+* Renamed events `drained` to `drain` and `flushed` to `end` to better match the standard Node.JS API
+* Added task grouping. `push` accepts a callback that will be called when all of the tasks in the previous argument are completed. 
 
 ### MIT License
 Copyright (c) 2013 John Manero, Dynamic Network Services
