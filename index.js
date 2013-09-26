@@ -23,166 +23,183 @@ var EventEmitter = require('events').EventEmitter;
 var Util = require('util');
 
 var Queue = module.exports = function(options) {
-	options = options || {};
-	EventEmitter.call(this);
+    options = options || {};
+    EventEmitter.call(this);
 
-	this.running = 0;
-	this.tasks = [];
-	this.results = [];
-	this.flooded = false;
+    this.running = 0;
+    this.tasks = [];
+    this.results = [];
+    this.flooded = false;
 
-	// Default false
-	this.paused = !!options.paused;	
-	
-	// Default True
-	this.flushable = (typeof options.flushable === 'undefined') ? true : !!options.flushable;
-	this.collect = (typeof options.collect === 'undefined') ? true : !!options.collect;
-	this.cleanup = (typeof options.cleanup === 'undefined') ? true : !!options.cleanup;
+    // Default false
+    this.paused = !!options.paused;
 
-	this.concurrency = options.concurrency || 1;
-	this.flood = options.flood || 256;
-	this.drain = options.drain || 1;
+    // Default True
+    this.collect = (typeof options.collect === 'undefined') ? true : !!options.collect;
 
-	// Default Work Mapper. Override Plz.
-	this.worker = function(t, c) {
-		c(null, t);
-	};
+    this.concurrency = options.concurrency || 1;
+    this.flood = options.flood || 256;
+    this.drain = options.drain || 1;
+
+    // Default Work Mapper. Override Plz.
+    this.worker = function(t, c) {
+        c(null, t);
+    };
 };
-
 Util.inherits(Queue, EventEmitter);
 
-// Queue Mode. Aggregate results and emit in 'drain' event
-Queue.prototype.push = function(tt, meta, worker) {
-	var self = this;
+var Group = Queue.Group = function(length, callback) {
+    this.callback = callback;
+    this.length = length;
+    this.results = [];
+};
+Group.prototype.push = function(res) {
+    this.length--;
+    this.results.push(res);
+    
+    if(!this.length)
+        process.nextTick((function() {
+            this.callback(this.results);
+        }).bind(this));
+};
 
-	if (typeof tt === 'undefined') {
-		if (!this.tasks.length && !this.running && !this.paused && this.flushable) {
-			this.emit('flushed', this.results);
+// Queue Mode. Aggregate results and emit in 'end' event
+Queue.prototype.push = function(tt, meta, callback) {
+    var self = this;
+    if(typeof meta === 'function') {
+        callback = meta;
+        meta = undefined;
+    }
 
-			if (this.cleanup)
-				this.clear();
-		}
+    if (typeof tt === 'undefined') {
+        if (!this.tasks.length && !this.running && !this.paused) {
+            this.emit('end', this.results);
+            this.clear();
+        }
 
-		return;
-	}
-	
-	if (!Array.isArray(tt))
-		tt = [ tt ];
+        return;
+    }
 
-	tt.forEach(function(t) {
-		self.tasks.push({
-			data : t,
-			meta : meta,
-			worker : worker
-		});
-	});
-	
-	if(this.tasks.length >= this.flood) {
-		this.flooded = true;
-		this.emit('flooded');
-	}
+    if (!Array.isArray(tt))
+        tt = [ tt ];
+    
+    // Work group. Callback when all of it's tasks are complete
+    var group;
+    if(typeof callback === 'function')
+        group = new Group(tt.length, callback);
+        
+    tt.forEach(function(t) {
+        self.tasks.push({
+            data : t,
+            meta : meta,
+            group : group
+        });
+    });
 
-	process.nextTick(reactor.bind(this));
+    process.nextTick(reactor.bind(this));
+    if(this.tasks.length >= this.flood) {
+        this.flooded = true;
+        return false;
+    }
+    return true;
 };
 
 // Buffer Mode. Return result in task-local callback
 Queue.prototype.buffer = function(task, callback, meta, worker) {
-	this.tasks.push({
-		data : task,
-		callback : callback,
-		meta : meta,
-		worker : worker
-	});
-	
-	if(this.tasks.length >= this.flood) {
-		this.flooded = true;
-		this.emit('flooded');
-	}
+    this.tasks.push({
+        data : task,
+        callback : callback,
+        meta : meta,
+        worker : worker
+    });
 
-	process.nextTick(reactor.bind(this));
+    process.nextTick(reactor.bind(this));
+    if(this.tasks.length >= this.flood) {
+        this.flooded = true;
+        return false;
+    }
+    return true;
 };
 
 // Free stored results
 Queue.prototype.clear = function() {
-	this.results = [];
+    this.results = [];
 };
 
-// Stop popping new tasks. Allow running tasks to complete.
+// Don't start new tasks. Allow running tasks to complete.
 Queue.prototype.pause = function() {
-	this.paused = true;
+    this.paused = true;
 };
 
 // Restart processing
 Queue.prototype.resume = function() {
-	this.paused = false;
-	process.nextTick(reactor.bind(this));
+    this.paused = false;
+    process.nextTick(reactor.bind(this));
 };
 
 // PRIVATE: Idempotent non-blocking work loop (as non-blocking as the supplied
 // worker function)
 function reactor() {
-	var self = this;
-	if (this.running >= this.concurrency) // Fully saturated
-		return;
+    var self = this;
+    if (this.running >= this.concurrency) // Fully saturated
+        return;
 
-	if (this.paused) // Paused. Terminate
-		return;
+    if (this.paused) // Paused
+        return;
 
-	if (!this.tasks.length) { // Nothing else to do
-		if (!this.running && this.flushable) { // This is the last one
-			this.emit('flushed', this.results);
+    if (!this.tasks.length) { // Nothing else to do
+        if (!this.running) { // This is the last one
+            this.emit('end', this.results);
+            this.clear();
+        }
 
-			if (this.cleanup)
-				this.clear();
-		}
+        return;
+    }
 
-		return;
-	}
+    this.running++;
+    var task = this.tasks.shift();
 
-	this.running++;
-	var task = this.tasks.shift();
-	
-	if(this.tasks.length < this.drain) {
-		this.flooded = false;
-		this.emit('drained');
-	}
+    if (this.tasks.length < this.drain) {
+        this.flooded = false;
+        this.emit('drain');
+    }
 
-	process.nextTick(function() {
-		// Protect against multiple calls of callback by bad user-supplied
-		// work function
-		var called = false;
+    process.nextTick(function() {
+        // Protect against multiple calls of callback by bad user-supplied
+        // work function
+        var called = false;
 
-		// Worker callback shim
-		var complete = function(err, res) {
-			if (called)
-				return;
+        // Worker function. Either supplied by task, or global
+        var worker = task.worker || self.worker;
+        worker(task.data, function(err, res) {
+            if (called) // Only call once
+                return;
+            called = true;
 
-			called = true;
+            // Return result to task-callback
+            if (typeof task.callback === 'function') {
+                process.nextTick(function() {
+                    task.callback(err, res);
+                });
+            }
 
-			// Return result to task-callback
-			if (typeof task.callback === 'function') {
-				process.nextTick(function() {
-					task.callback(err, res);
-				});
-			}
+            // Create result container
+            var result = {
+                task : task.data,
+                result : res,
+                error : err
+            };
+            
+            if (task.group) { // Group
+                task.group.push(result);
+            } else if (self.collect) { // Or Global
+                self.results.push(result);
+            }
 
-			// Don't store results if we won't drain...
-			if (self.collect) {
-				self.results.push({
-					task : task.data,
-					result : res,
-					error : err
-				});
-			}
+            self.running--;
+            reactor.call(self); // Replace myself 1-1
+        }, task.meta);
+    });
 
-			self.running--;
-			reactor.call(self); // Replace myself 1-1
-		};
-
-		// Worker function. Either supplied by task, or global
-		var worker = task.worker || self.worker;
-		worker(task.data, complete, task.meta);
-	});
-
-	reactor.call(this); // Spawn until fully saturated
+    reactor.call(this); // Spawn until fully saturated
 }

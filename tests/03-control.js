@@ -40,17 +40,18 @@ describe("Control", function() {
 		var concurrency = 16;
 		queue.concurrency = concurrency;
 		
-		it("should run " + concurrency + " parallel tasks", function() {
+		it("should run " + concurrency + " concurrent tasks", function(done) {
 			queue.push(tasks.splice(0, 64));
 			queue.resume();
 			
 			process.nextTick(function() {
 				Assert.equal(queue.running, concurrency);
+				done();
 			});
 		});
 	});
 	
-	describe("Callbacks", function() {
+	describe("Buffer Callbacks", function() {
 		it("should call the task's callback", function(done) {
 			queue.buffer(tasks.shift(), function(err, res) {
 				if(err) {
@@ -63,7 +64,7 @@ describe("Control", function() {
 		});
 	});
 	
-	describe("Worker", function() {
+	describe("Buffer Worker", function() {
 		it("should use an overriding work functon", function(done) {
 			queue.buffer(tasks.shift(), function(err, res) {
 				if(err) {

@@ -9,16 +9,8 @@ describe("Constructor", function() {
 			Assert.ok(!queue.paused);
 		});
 
-		it("should be flushable", function() {
-			Assert.ok(queue.flushable);
-		});
-
 		it("should collect", function() {
 			Assert.ok(queue.collect);
-		});
-
-		it("should cleanup", function() {
-			Assert.ok(queue.cleanup);
 		});
 
 		it("should have a concurrency of 1", function() {
@@ -52,16 +44,8 @@ describe("Constructor", function() {
 			Assert.ok(queue.paused);
 		});
 
-		it("shouldn't be flushable", function() {
-			Assert.ok(!queue.flushable);
-		});
-
 		it("shouldn't collect", function() {
 			Assert.ok(!queue.collect);
-		});
-
-		it("shouldn't cleanup", function() {
-			Assert.ok(!queue.cleanup);
 		});
 
 		it("should have the correct concurrency", function() {

@@ -55,27 +55,6 @@ describe("Methods", function() {
 				Assert.deepEqual(queue.tasks[i].meta, meta);
 			}
 		});
-
-		it("adds tasks to the backlog with a custom worker", function() {
-			var meta = {
-				foo : "bar",
-				c : 3
-			};
-			var work = function(task, done, meta) {
-				done(null, {
-					sum : task.a + task.b,
-					difference : task.a + task.b - meta.c
-				});
-			};
-
-			queue.push(tasks.splice(0, 24), meta, work);
-			shouldBe += 24;
-
-			for ( var i = shouldBe - 24; i < queue.tasks.length; i++) {
-				Assert.strictEqual(queue.tasks[i].meta, meta, "Missing meta");
-				Assert.strictEqual(queue.tasks[i].worker, work, "Missing worker");
-			}
-		});
 	});
 
 	describe("buffer(...)", function() {
@@ -121,14 +100,6 @@ describe("Methods", function() {
 		it("causes the internal loop to exit when running tasks complete", function() {
 			Assert.notEqual(queue.tasks, 0, "Backlog is empty");
 			Assert.equal(queue.running, 0, "Tasks are still running");
-		});
-	});
-	
-	describe("clear()", function() {
-		it("empties the results array", function() {
-			Assert.notEqual(queue.results.length, 0, "Results array is already empty");
-			queue.clear();
-			Assert.equal(queue.results.length, 0, "Results array is not empty");
 		});
 	});
 });

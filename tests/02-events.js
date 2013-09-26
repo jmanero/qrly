@@ -36,34 +36,23 @@ describe("Events", function() {
 		});
 	});
 
-	describe("Event: flooded", function() {
-		it("emmits 'flooded' event after the backlog equals " + flood, function(done) {
-			var to = setTimeout(function() {
-				done(new Error("Timeout"));
-			}, 1000);
-
-			queue.once('flooded', function() {
-				clearTimeout(to);
-				try {
-					Assert.equal(queue.tasks.length, flood, "Backlog is not equal to flood: " + queue.tasks.length);
-					done();
-				} catch (e) {
-					done(e);
-				}
-			});
-
-			queue.push(tasks.splice(0, flood - 1));
-			queue.push(tasks.shift());
+	describe("Flood detection", function() {
+		it("push/buffer return `false` after the backlog grows to >= " + flood, function() {
+			Assert.ok(queue.push(tasks.splice(0, flood - 2)), "Queue.push didn't retrun true when backlog < flood");
+			Assert.ok(queue.buffer(tasks.shift()), "Queue.buffer didn't retrun true when backlog < flood");
+			Assert.ok(!queue.push(tasks.shift()), "Queue.push didn't retrun false when backlog >= flood");
+            Assert.ok(!queue.buffer(tasks.shift()), "Queue.buffer didn't retrun false when backlog >= flood");
+            Assert.ok(queue.flooded, "Queue.flooded isn't set to true")
 		});
 	});
 
-	describe("Event: drained", function() {
-		it("emits 'drained' event after the backlog falls below " + drain, function(done) {
+	describe("Event: drain", function() {
+		it("emits 'drain' event after the backlog falls below " + drain, function(done) {
 			var to = setTimeout(function() {
 				done(new Error("Timeout"));
 			}, 1000);
 
-			queue.once('drained',
+			queue.once('drain',
 					function() {
 						queue.pause();
 						clearTimeout(to);
@@ -81,19 +70,17 @@ describe("Events", function() {
 		});
 	});
 
-	describe("Event: flushed", function() {
-		it("emits 'flushed' with results after all tasks complete", function(done) {
+	describe("Event: end", function() {
+		it("emits 'end' with results after all tasks complete", function(done) {
 			queue.pause();
 			queue.clear();
-			queue.flushable = true;
 			queue.collect = true;
-			queue.cleanup = true;
 			queue.push(tasks.splice(0, 48));
 			shouldBe += 48;
 			
 			queue.resume();
 			
-			queue.once('flushed', function(res) {
+			queue.once('end', function(res) {
 				try {
 					Assert.equal(queue.tasks, 0, "Tasks are still backlogged");
 					Assert.equal(queue.running, 0, "Tasks are still running");
@@ -106,21 +93,16 @@ describe("Events", function() {
 			});
 		});
 		
-		it("clears the results list when cleanup is true", function() {
-			Assert.equal(queue.results.length, 0);
-		});
-		
-		it("doesn't save resutls when collect is false", function(done) {
+		it("doesn't save resutls when collect is `false`", function(done) {
 			queue.pause();
 			queue.clear();
-			queue.flushable = true;
 			queue.collect = false;
 			queue.push(tasks.splice(0, 48));
 			shouldBe += 48;
 			
 			queue.resume();
 			
-			queue.once('flushed', function(res) {
+			queue.once('end', function(res) {
 				try {
 					Assert.equal(queue.tasks, 0, "Tasks are still backlogged");
 					Assert.equal(queue.running, 0, "Tasks are still running");
@@ -130,35 +112,6 @@ describe("Events", function() {
 				} catch(e) {
 					done(e);
 				}
-			});
-		});
-		
-		it("doesn't emit 'flushed' when flushable is false", function(done) {
-			queue.pause();
-			queue.clear();
-			queue.flushable = false;
-			queue.collect = true;
-			queue.push(tasks.splice(0, 48));
-			shouldBe += 48;
-			
-			queue.resume();
-			
-			var to = setTimeout(function() {
-				try {
-					Assert.equal(queue.tasks, 0, "Tasks are still backlogged");
-					Assert.equal(queue.running, 0, "Tasks are still running");
-					Assert.equal(queue.results.length, shouldBe, "Wrong number of results: " + queue.results.length);
-					shouldBe = 0;
-					
-					done();
-				} catch(e) {
-					done(e);
-				}
-			}, 24);
-			
-			queue.once('flushed', function() {
-				clearTimeout(to);
-				done(new Error("Flushed anyway..."));
 			});
 		});
 	});
