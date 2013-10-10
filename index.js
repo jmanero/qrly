@@ -48,30 +48,71 @@ var Queue = module.exports = function(options) {
 };
 Util.inherits(Queue, EventEmitter);
 
-var Group = Queue.Group = function(length, callback) {
-    this.callback = callback;
-    this.length = length;
-    this.results = [];
+var Task = Queue.Task = function(params, meta, group) {
+    this.params = params;
+    this.meta = meta;
+    this.group = group;
+    this.status = "queued";
 };
-Group.prototype.push = function(res) {
-    this.length--;
-    this.results.push(res);
+
+Task.prototype.complete = function(error, result) {
+    if (error) {
+        this.status = "error";
+        this.error = error;
+        return;
+    }
+
+    this.status = "complete";
+    this.result = result;
+};
+
+Task.prototype.toJSON = function() {
+    var json = {
+        status : this.status,
+        params : this.params
+    };
     
-    if(!this.length)
+    if(this.resutl)
+        json.result = this.result;
+    if(this.error)
+        json.error - this.error;
+
+    return json;
+};
+
+var Group = Queue.Group = function(tasks, callback) {
+    EventEmitter.call(this);
+
+    this.callback = callback;
+    this.tasks = tasks;
+    this.complete = 0;
+};
+Util.inherits(Group, EventEmitter);
+
+Group.prototype.tick = function() {
+    this.complete++;
+
+    // Done
+    if (this.complete == this.tasks.length)
         process.nextTick((function() {
-            this.callback(this.results);
+            this.emit('end');
+            this.callback(this.tasks);
         }).bind(this));
 };
 
+Group.prototype.toJSON = function() {
+    return this.tasks;
+};
+
 // Queue Mode. Aggregate results and emit in 'end' event
-Queue.prototype.push = function(tt, meta, callback) {
+Queue.prototype.push = function(tasks, meta, callback, worker) {
     var self = this;
-    if(typeof meta === 'function') {
+    if (typeof meta === 'function') {
         callback = meta;
         meta = undefined;
     }
 
-    if (typeof tt === 'undefined') {
+    if (typeof tasks === 'undefined') {
         if (!this.tasks.length && !this.running && !this.paused) {
             this.emit('end', this.results);
             this.clear();
@@ -80,41 +121,37 @@ Queue.prototype.push = function(tt, meta, callback) {
         return;
     }
 
-    if (!Array.isArray(tt))
-        tt = [ tt ];
-    
+    if (!Array.isArray(tasks))
+        tasks = [ tasks ];
+
     // Work group. Callback when all of it's tasks are complete
-    var group;
-    if(typeof callback === 'function')
-        group = new Group(tt.length, callback);
-        
-    tt.forEach(function(t) {
-        self.tasks.push({
-            data : t,
-            meta : meta,
-            group : group
-        });
+    var group = (typeof callback === 'function') ? new Group(tasks, callback) : undefined;
+
+    tasks.forEach(function(params) {
+        task = new Task(params, meta, group)
+        task.worker = worker || self.worker; // Default
+        self.tasks.push(task);
     });
 
     process.nextTick(reactor.bind(this));
-    if(this.tasks.length >= this.flood) {
+    if (this.tasks.length >= this.flood) {
         this.flooded = true;
-        return false;
+        return group || false;
     }
-    return true;
+    return group || true;
 };
 
 // Buffer Mode. Return result in task-local callback
-Queue.prototype.buffer = function(task, callback, meta, worker) {
-    this.tasks.push({
-        data : task,
-        callback : callback,
-        meta : meta,
-        worker : worker
-    });
+Queue.prototype.buffer = function(params, callback, meta, worker) {
+    var task = new Task(params, meta);
+    task.worker = worker || this.worker;
+    task.callback = callback;
+
+    // Enqueue
+    this.tasks.push(task);
 
     process.nextTick(reactor.bind(this));
-    if(this.tasks.length >= this.flood) {
+    if (this.tasks.length >= this.flood) {
         this.flooded = true;
         return false;
     }
@@ -170,8 +207,8 @@ function reactor() {
         var called = false;
 
         // Worker function. Either supplied by task, or global
-        var worker = task.worker || self.worker;
-        worker(task.data, function(err, res) {
+        task.status = "running";
+        task.worker(task.params, function(err, res) {
             if (called) // Only call once
                 return;
             called = true;
@@ -183,17 +220,14 @@ function reactor() {
                 });
             }
 
-            // Create result container
-            var result = {
-                task : task.data,
-                result : res,
-                error : err
-            };
-            
+            task.complete(err, res);
+
             if (task.group) { // Group
-                task.group.push(result);
+                task.group.tick();
+
             } else if (self.collect) { // Or Global
-                self.results.push(result);
+                self.results.push(task);
+
             }
 
             self.running--;

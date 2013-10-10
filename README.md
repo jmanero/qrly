@@ -107,7 +107,7 @@ And we've found the problem: our good old synchronous control structures have no
  * `drain: Number` Lower threshold at which the `drain` event is emitted (default `1`)
 
 #### Methods
- * `push(tasks[, meta[, callback(results)]])` Add a task (or array of tasks) to the queue. 
+ * `push(tasks[, meta[, callback(results)]])` Add a task (or array of tasks) to the queue. If no callback is passed, the return value will be a boolean: false indicates that the 'flood' threshold has been exceeded. If a callback parameter is passed, the associated Group container will be returned.
   * `meta` is an optional value that will be passed to the worker with the respective task(s) being queued by the call
   * `callback(results)` will be called when all tasks in the `tasks` array passed to `push` have all been completed. The callback will be passed an array of result objects from the associated tasks. These tasks' results will not be added to the global results array, or passed to `end` events.
  * `buffer(task, callback(err, result)[, meta[, worker]])` Accepts a single task with a callback to be bound to that task.
@@ -126,7 +126,10 @@ And we've found the problem: our good old synchronous control structures have no
 #### 0.1.x -> 0.2.0
 * Removed `flushable` and `cleanup` attributes. The queue always acts as if both were true.
 * Renamed events `drained` to `drain` and `flushed` to `end` to better match the standard Node.JS API
-* Added task grouping. `push` accepts a callback that will be called when all of the tasks in the previous argument are completed. 
+* Added task grouping. `push` accepts a callback that will be called when all of the tasks in the previous argument are completed.
+#### 0.2.0 -> 0.3.0
+* Introduces Task object to manage the life-cycle of a given task. Improves flow for task-specific workers,
+* Group objects are returned by `push` if a callback is passed. Groups contain references to their constituent tasks, providing the ability to inspect the state of queued/running/completed tasks.
 
 ### MIT License
 Copyright (c) 2013 John Manero, Dynamic Network Services
