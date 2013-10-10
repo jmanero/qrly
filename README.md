@@ -127,6 +127,7 @@ And we've found the problem: our good old synchronous control structures have no
 * Removed `flushable` and `cleanup` attributes. The queue always acts as if both were true.
 * Renamed events `drained` to `drain` and `flushed` to `end` to better match the standard Node.JS API
 * Added task grouping. `push` accepts a callback that will be called when all of the tasks in the previous argument are completed.
+
 #### 0.2.0 -> 0.3.0
 * Introduces Task object to manage the life-cycle of a given task. Improves flow for task-specific workers,
 * Group objects are returned by `push` if a callback is passed. Groups contain references to their constituent tasks, providing the ability to inspect the state of queued/running/completed tasks.
