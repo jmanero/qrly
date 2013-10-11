@@ -132,6 +132,9 @@ And we've found the problem: our good old synchronous control structures have no
 * Introduces Task object to manage the life-cycle of a given task. Improves flow for task-specific workers,
 * Group objects are returned by `push` if a callback is passed. Groups contain references to their constituent tasks, providing the ability to inspect the state of queued/running/completed tasks.
 
+#### 0.3.1
+* Fix task.toJSON: Wasn't returning result object
+
 ### MIT License
 Copyright (c) 2013 John Manero, Dynamic Network Services
 

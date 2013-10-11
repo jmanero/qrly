@@ -69,34 +69,39 @@ Task.prototype.complete = function(error, result) {
 Task.prototype.toJSON = function() {
     var json = {
         status : this.status,
-        params : this.params
+        params : this.params,
+        meta : this.meta
     };
-    
-    if(this.resutl)
+
+    if (this.result)
         json.result = this.result;
-    if(this.error)
-        json.error - this.error;
+    if (this.error)
+        json.error = this.error;
 
     return json;
 };
 
-var Group = Queue.Group = function(tasks, callback) {
+var Group = Queue.Group = function(callback) {
     EventEmitter.call(this);
 
     this.callback = callback;
-    this.tasks = tasks;
+    this.tasks = [];
     this.complete = 0;
 };
 Util.inherits(Group, EventEmitter);
 
-Group.prototype.tick = function() {
+Group.prototype.push = function(task) {
+    this.tasks.push(task);
+};
+
+Group.prototype.pop = function() {
     this.complete++;
 
     // Done
     if (this.complete == this.tasks.length)
         process.nextTick((function() {
             this.emit('end');
-            this.callback(this.tasks);
+            this.callback(this);
         }).bind(this));
 };
 
@@ -121,18 +126,23 @@ Queue.prototype.push = function(tasks, meta, callback, worker) {
         return;
     }
 
-    if (!Array.isArray(tasks))
-        tasks = [ tasks ];
-
     // Work group. Callback when all of it's tasks are complete
-    var group = (typeof callback === 'function') ? new Group(tasks, callback) : undefined;
+    var group = (typeof callback === 'function') ? new Group(callback) : undefined;
 
-    tasks.forEach(function(params) {
-        task = new Task(params, meta, group)
+    // Create task objects from params
+    tasks = (Array.isArray(tasks) ? tasks : [ tasks ]).map(function(params) {
+        task = new Task(params, meta, group);
         task.worker = worker || self.worker; // Default
-        self.tasks.push(task);
+
+        if (group)
+            group.push(task);
+        return task
     });
 
+    // Enqueue
+    Array.prototype.push.apply(this.tasks, tasks);
+
+    // Check for flood
     process.nextTick(reactor.bind(this));
     if (this.tasks.length >= this.flood) {
         this.flooded = true;
@@ -223,7 +233,7 @@ function reactor() {
             task.complete(err, res);
 
             if (task.group) { // Group
-                task.group.tick();
+                task.group.pop();
 
             } else if (self.collect) { // Or Global
                 self.results.push(task);

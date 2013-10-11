@@ -30,10 +30,10 @@ describe("Groups", function() {
     });
 
     describe("Grouped Callbacks", function() {
-        it("should return the right number of results", function(done) {
-            var shouldBe = 128;
-            queue.push(tasks.splice(0, shouldBe), function(res) {
-                Assert.equal(res.length, shouldBe, "Group didn't return the right number of results")
+        var shouldBe = 128;
+        it("should contain the right number of tasks", function(done) {
+            var group = queue.push(tasks.splice(0, shouldBe), function(g) {
+                Assert.equal(g.tasks.length, shouldBe, "Group didn't contain the right number of tasks")
                 done();
             });
             queue.resume();
