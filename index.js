@@ -100,13 +100,20 @@ Group.prototype.pop = function() {
     // Done
     if (this.complete == this.tasks.length)
         process.nextTick((function() {
-            this.emit('end');
+            this.emit('end', this);
             this.callback(this);
         }).bind(this));
 };
 
+Group.prototype.isComplete = function() {
+    return this.complete == this.tasks.length;
+};
+
 Group.prototype.toJSON = function() {
-    return this.tasks;
+    return ({
+        status : this.status,
+        tasks : this.tasks
+    });
 };
 
 // Queue Mode. Aggregate results and emit in 'end' event
