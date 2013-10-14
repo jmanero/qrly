@@ -135,6 +135,9 @@ And we've found the problem: our good old synchronous control structures have no
 #### 0.3.1
 * Fix task.toJSON: Wasn't returning result object
 
+#### 0.3.2
+* Add isCompleted to Group
+
 ### MIT License
 Copyright (c) 2013 John Manero, Dynamic Network Services
 
