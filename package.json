@@ -1,6 +1,6 @@
 {
 	"name" : "qrly",
-	"version" : "0.3.1",
+	"version" : "0.3.2",
 	"description" : "A highly extensible queue with proper asynchronicity",
 	"homepage" : "https://github.com/jmanero/qrly",
 	"author" : {
